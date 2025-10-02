@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, Form, HTTPException, Depends
+from fastapi import FastAPI, Request, Form, HTTPException, Depends, Header
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import create_engine
@@ -24,6 +24,18 @@ def get_db():
         yield db
     finally:
         db.close()
+
+# --- JWT Auth Dependency ---
+def get_current_user(token: str = Header(...), db=Depends(get_db)):
+    try:
+        payload = decode_jwt(token)
+        user_id = payload.get("user_id")
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(401, "User not found")
+        return user
+    except:
+        raise HTTPException(401, "Invalid token")
 
 # --- ROUTES ---
 
@@ -55,16 +67,14 @@ def login(username: str = Form(...), password: str = Form(...), db=Depends(get_d
 
 # Dashboard page
 @app.get("/dashboard", response_class=HTMLResponse)
-def dashboard(request: Request, db=Depends(get_db)):
-    # For now, show all devices (later filter by logged-in user)
-    devices = db.query(Device).all()
+def dashboard(request: Request, current_user: User = Depends(get_current_user), db=Depends(get_db)):
+    devices = db.query(Device).filter(Device.owner_id == current_user.id).all()
     return templates.TemplateResponse("dashboard.html", {"request": request, "devices": devices})
 
 # Register a device
 @app.post("/register-device")
-def register_device(device_name: str = Form(...), db=Depends(get_db)):
-    # For now, assign to user_id=1 as placeholder
-    device = Device(name=device_name, owner_id=1, authorized=True)
+def register_device(device_name: str = Form(...), current_user: User = Depends(get_current_user), db=Depends(get_db)):
+    device = Device(name=device_name, owner_id=current_user.id, authorized=True)
     db.add(device)
     db.commit()
     db.refresh(device)
