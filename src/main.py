@@ -1,15 +1,20 @@
-from fastapi import FastAPI, Request, Form
-from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
+# Other imports...
+from fastapi import HTTPException, Form
 
-app = FastAPI()
-templates = Jinja2Templates(directory="src/templates")
+# Your existing routes: /register, /login, /dashboard, /register-device
 
-@app.get("/", response_class=HTMLResponse)
-def home(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
-
-@app.post("/register")
-def register(username: str = Form(...), password: str = Form(...)):
-    # TODO: hash password and store user
-    return {"message": f"User {username} registered!"}
+# --- WatcherDog Admin Endpoint ---
+@app.post("/admin/watcherdog/shutdown")
+def watcherdog_shutdown(confirmation: str = Form(...), token: str = Form(...)):
+    try:
+        payload = decode_jwt(token)
+    except:
+        raise HTTPException(401, "Invalid token")
+    if not payload.get("is_admin"):
+        raise HTTPException(403, "Admin required")
+    
+    if confirmation != "CONFIRM_SHUTDOWN":
+        raise HTTPException(400, "Invalid confirmation phrase")
+    
+    # TODO: enqueue shutdown action safely
+    return {"status": "shutdown_requested", "requested_by": payload.get("sub")}
