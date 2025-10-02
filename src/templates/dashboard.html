@@ -1,1 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SIC Account Manager Dashboard</title>
+</head>
+<body>
+    <h1>Dashboard</h1>
+    <h2>Your Devices:</h2>
+    <ul>
+        <!-- FastAPI will dynamically insert device list here -->
+        {% for device in devices %}
+            <li>{{ device.name }} - Authorized: {{ device.authorized }}</li>
+        {% endfor %}
+    </ul>
+
+    <!-- Add a new device form -->
+    <h3>Register New Device</h3>
+    <form method="post" action="/register-device">
+        <input type="text" name="device_name" placeholder="Device Name" required>
+        <button type="submit">Register Device</button>
+    </form>
+</body>
+</html>
 
