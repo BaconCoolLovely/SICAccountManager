@@ -2,127 +2,32 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Admin Dashboard - WatcherDog</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        h1, h2 { color: #cc0000; }
-        table { border-collapse: collapse; width: 70%; margin-bottom: 20px; }
-        table, th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
-        input, button { padding: 8px; margin: 5px; }
-        button { cursor: pointer; background-color: #cc0000; color: white; border: none; border-radius: 4px; }
-        button:hover { background-color: #990000; }
-    </style>
+    <title>WatcherDog Admin Dashboard</title>
 </head>
 <body>
-    <h1>WatcherDog Admin Panel</h1>
+    <h1>WatcherDog Admin Dashboard</h1>
+    <p>Admin: {{ admin }}</p>
 
-    <h2>Devices</h2>
-    <table id="devices-table">
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Name</th>
-                <th>Authorized</th>
-                <th>Action</th>
-            </tr>
-        </thead>
-        <tbody></tbody>
+    <h2>All Users</h2>
+    <table border="1" cellpadding="5">
+        <tr>
+            <th>ID</th>
+            <th>Username</th>
+            <th>Email</th>
+            <th>Blocked</th>
+            <th>Permanently Banned</th>
+            <th>Blocked Code</th>
+        </tr>
+        {% for user in users %}
+        <tr>
+            <td>{{ user.id }}</td>
+            <td>{{ user.username }}</td>
+            <td>{{ user.email }}</td>
+            <td>{{ user.blocked }}</td>
+            <td>{{ user.permanently_banned }}</td>
+            <td>{{ user.blocked_code }}</td>
+        </tr>
+        {% endfor %}
     </table>
-
-    <h2>WatcherDog Actions</h2>
-    <input type="text" id="confirmation" placeholder="Enter confirmation phrase" />
-    <br>
-    <button onclick="lockWebsite()">Lock Website</button>
-    <button onclick="unlockWebsite()">Unlock Website</button>
-    <button onclick="shutdownWebsite()">Shutdown</button>
-
-    <script>
-        const token = "PASTE_ADMIN_JWT_HERE"; // Replace after login
-
-        // Fetch devices from /dashboard
-        async function loadDevices() {
-            const res = await fetch("/dashboard", {
-                headers: { "Authorization": token }
-            });
-            const html = await res.text();
-
-            // Parse devices from dashboard HTML
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(html, "text/html");
-            const devicesElements = doc.querySelectorAll("#devices-list li"); // Assuming dashboard.html lists devices in <li>
-
-            const tableBody = document.querySelector("#devices-table tbody");
-            tableBody.innerHTML = "";
-
-            devicesElements.forEach(el => {
-                const id = el.getAttribute("data-id");
-                const name = el.textContent;
-                const authorized = el.getAttribute("data-authorized") === "true";
-
-                const tr = document.createElement("tr");
-                tr.innerHTML = `
-                    <td>${id}</td>
-                    <td>${name}</td>
-                    <td>${authorized ? "Yes" : "No"}</td>
-                    <td>
-                        <button onclick="toggleDevice(${id}, ${authorized})">
-                            ${authorized ? "Block" : "Unblock"}
-                        </button>
-                    </td>
-                `;
-                tableBody.appendChild(tr);
-            });
-        }
-
-        // Block/Unblock device
-        async function toggleDevice(deviceId, currentlyAuthorized) {
-            if (currentlyAuthorized) {
-                const res = await fetch("/admin/watcherdog/block-device", {
-                    method: "POST",
-                    headers: {"Content-Type": "application/x-www-form-urlencoded"},
-                    body: `device_id=${deviceId}&token=${token}`
-                });
-                alert(await res.json().then(r => JSON.stringify(r)));
-            } else {
-                // Optional: create /unblock-device endpoint in main.py
-                alert("Unblock feature not implemented yet");
-            }
-            loadDevices(); // Refresh table
-        }
-
-        // WatcherDog actions
-        async function lockWebsite() {
-            const confirmation = document.getElementById('confirmation').value;
-            const res = await fetch("/admin/watcherdog/lock-website", {
-                method: "POST",
-                headers: {"Content-Type": "application/x-www-form-urlencoded"},
-                body: `confirmation=${confirmation}&token=${token}`
-            });
-            alert(await res.json().then(r => JSON.stringify(r)));
-        }
-
-        async function unlockWebsite() {
-            const confirmation = document.getElementById('confirmation').value;
-            const res = await fetch("/admin/watcherdog/unlock-website", {
-                method: "POST",
-                headers: {"Content-Type": "application/x-www-form-urlencoded"},
-                body: `confirmation=${confirmation}&token=${token}`
-            });
-            alert(await res.json().then(r => JSON.stringify(r)));
-        }
-
-        async function shutdownWebsite() {
-            const confirmation = document.getElementById('confirmation').value;
-            const res = await fetch("/admin/watcherdog/shutdown", {
-                method: "POST",
-                headers: {"Content-Type": "application/x-www-form-urlencoded"},
-                body: `confirmation=${confirmation}&token=${token}`
-            });
-            alert(await res.json().then(r => JSON.stringify(r)));
-        }
-
-        // Load devices on page load
-        loadDevices();
-    </script>
 </body>
 </html>
