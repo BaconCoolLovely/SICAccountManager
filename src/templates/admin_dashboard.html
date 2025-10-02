@@ -6,7 +6,7 @@
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; }
         h1, h2 { color: #cc0000; }
-        table { border-collapse: collapse; width: 60%; margin-bottom: 20px; }
+        table { border-collapse: collapse; width: 70%; margin-bottom: 20px; }
         table, th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
         input, button { padding: 8px; margin: 5px; }
         button { cursor: pointer; background-color: #cc0000; color: white; border: none; border-radius: 4px; }
@@ -23,14 +23,13 @@
                 <th>ID</th>
                 <th>Name</th>
                 <th>Authorized</th>
+                <th>Action</th>
             </tr>
         </thead>
-        <tbody>
-            <!-- Devices will populate here -->
-        </tbody>
+        <tbody></tbody>
     </table>
 
-    <h2>Actions</h2>
+    <h2>WatcherDog Actions</h2>
     <input type="text" id="confirmation" placeholder="Enter confirmation phrase" />
     <br>
     <button onclick="lockWebsite()">Lock Website</button>
@@ -38,18 +37,57 @@
     <button onclick="shutdownWebsite()">Shutdown</button>
 
     <script>
-        // TODO: Replace with dynamic token after login
-        const token = "PASTE_ADMIN_JWT_HERE"; 
+        const token = "PASTE_ADMIN_JWT_HERE"; // Replace after login
 
-        // Load devices
+        // Fetch devices from /dashboard
         async function loadDevices() {
             const res = await fetch("/dashboard", {
-                method: "GET",
                 headers: { "Authorization": token }
             });
             const html = await res.text();
-            // For now, manually inspect dashboard.html for device data
-            console.log(html);
+
+            // Parse devices from dashboard HTML
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, "text/html");
+            const devicesElements = doc.querySelectorAll("#devices-list li"); // Assuming dashboard.html lists devices in <li>
+
+            const tableBody = document.querySelector("#devices-table tbody");
+            tableBody.innerHTML = "";
+
+            devicesElements.forEach(el => {
+                const id = el.getAttribute("data-id");
+                const name = el.textContent;
+                const authorized = el.getAttribute("data-authorized") === "true";
+
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td>${id}</td>
+                    <td>${name}</td>
+                    <td>${authorized ? "Yes" : "No"}</td>
+                    <td>
+                        <button onclick="toggleDevice(${id}, ${authorized})">
+                            ${authorized ? "Block" : "Unblock"}
+                        </button>
+                    </td>
+                `;
+                tableBody.appendChild(tr);
+            });
+        }
+
+        // Block/Unblock device
+        async function toggleDevice(deviceId, currentlyAuthorized) {
+            if (currentlyAuthorized) {
+                const res = await fetch("/admin/watcherdog/block-device", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/x-www-form-urlencoded"},
+                    body: `device_id=${deviceId}&token=${token}`
+                });
+                alert(await res.json().then(r => JSON.stringify(r)));
+            } else {
+                // Optional: create /unblock-device endpoint in main.py
+                alert("Unblock feature not implemented yet");
+            }
+            loadDevices(); // Refresh table
         }
 
         // WatcherDog actions
