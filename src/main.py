@@ -6,7 +6,7 @@ from sqlalchemy.orm import sessionmaker
 from models.user import Base, User
 from models.device import Device
 from utils.security import hash_password, verify_password
-from utils.jwt_helper import create_jwt, decode_jwt  # <- Use our JWT helper
+from utils.jwt_helper import create_jwt, decode_jwt  # <- your existing jwt_helper.py
 from utils.logs import log_action  # WatcherDog logging
 
 # --- Database Setup ---
