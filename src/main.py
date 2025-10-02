@@ -5,7 +5,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from models.user import Base, User
 from models.device import Device
-from utils.security import hash_password, verify_password, create_jwt, decode_jwt
+from utils.security import hash_password, verify_password
+from utils.jwt_helper import create_jwt, decode_jwt  # <- Use our JWT helper
 from utils.logs import log_action  # WatcherDog logging
 
 # --- Database Setup ---
@@ -35,8 +36,8 @@ def get_current_user(token: str = Header(...), db=Depends(get_db)):
         if not user:
             raise HTTPException(401, "User not found")
         return user
-    except:
-        raise HTTPException(401, "Invalid token")
+    except Exception as e:
+        raise HTTPException(401, f"Invalid token: {str(e)}")
 
 # --- ROUTES ---
 
@@ -88,8 +89,8 @@ def register_device(device_name: str = Form(...), current_user: User = Depends(g
 def watcherdog_shutdown(confirmation: str = Form(...), token: str = Form(...)):
     try:
         payload = decode_jwt(token)
-    except:
-        raise HTTPException(401, "Invalid token")
+    except Exception as e:
+        raise HTTPException(401, f"Invalid token: {str(e)}")
     if not payload.get("is_admin"):
         raise HTTPException(403, "Admin required")
     if confirmation != "CONFIRM_SHUTDOWN":
@@ -103,8 +104,8 @@ def watcherdog_shutdown(confirmation: str = Form(...), token: str = Form(...)):
 def lock_website(confirmation: str = Form(...), token: str = Form(...)):
     try:
         payload = decode_jwt(token)
-    except:
-        raise HTTPException(401, "Invalid token")
+    except Exception as e:
+        raise HTTPException(401, f"Invalid token: {str(e)}")
     if not payload.get("is_admin"):
         raise HTTPException(403, "Admin required")
     if confirmation != "CONFIRM_LOCK":
@@ -118,8 +119,8 @@ def lock_website(confirmation: str = Form(...), token: str = Form(...)):
 def unlock_website(confirmation: str = Form(...), token: str = Form(...)):
     try:
         payload = decode_jwt(token)
-    except:
-        raise HTTPException(401, "Invalid token")
+    except Exception as e:
+        raise HTTPException(401, f"Invalid token: {str(e)}")
     if not payload.get("is_admin"):
         raise HTTPException(403, "Admin required")
     if confirmation != "CONFIRM_UNLOCK":
@@ -133,8 +134,8 @@ def unlock_website(confirmation: str = Form(...), token: str = Form(...)):
 def block_device(device_id: int = Form(...), token: str = Form(...), db=Depends(get_db)):
     try:
         payload = decode_jwt(token)
-    except:
-        raise HTTPException(401, "Invalid token")
+    except Exception as e:
+        raise HTTPException(401, f"Invalid token: {str(e)}")
     if not payload.get("is_admin"):
         raise HTTPException(403, "Admin required")
     device = db.query(Device).filter(Device.id == device_id).first()
