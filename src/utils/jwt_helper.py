@@ -1,23 +1,26 @@
 import jwt
 from datetime import datetime, timedelta
+from fastapi import HTTPException
 
-# Secret key for JWT — keep this safe
-JWT_SECRET = "replace_this_with_a_strong_secret"
-JWT_ALGO = "HS256"
-JWT_EXPIRES_MINUTES = 60 * 24  # 1 day
+# --- Secret key (generate a strong random one in production!) ---
+SECRET_KEY = "SUPER_SECRET_SIC_KEY_CHANGE_ME"
+ALGORITHM = "HS512"   # Stronger than HS256
+ACCESS_TOKEN_EXPIRE_MINUTES = 60  # Tokens last 1 hour
 
-# Create a JWT token
-def create_jwt(payload: dict) -> str:
-    to_encode = payload.copy()
-    expire = datetime.utcnow() + timedelta(minutes=JWT_EXPIRES_MINUTES)
+# --- Create JWT ---
+def create_jwt(data: dict, expires_delta: timedelta = None):
+    to_encode = data.copy()
+    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
     to_encode.update({"exp": expire, "iat": datetime.utcnow()})
-    return jwt.encode(to_encode, JWT_SECRET, algorithm=JWT_ALGO)
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
 
-# Decode and validate a JWT token
-def decode_jwt(token: str) -> dict:
+# --- Decode & verify JWT ---
+def decode_jwt(token: str):
     try:
-        return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        return payload
     except jwt.ExpiredSignatureError:
-        raise Exception("Token expired")
+        raise HTTPException(status_code=401, detail="Token expired, please log in again")
     except jwt.InvalidTokenError:
-        raise Exception("Invalid token")
+        raise HTTPException(status_code=401, detail="Invalid token")
