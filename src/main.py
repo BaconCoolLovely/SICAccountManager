@@ -1,4 +1,6 @@
-from fastapi import FastAPI, Form, HTTPException, Depends
+from fastapi import FastAPI, Form, HTTPException, Depends, Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from datetime import datetime
 from models.database import get_db
@@ -9,6 +11,7 @@ from utils.jwt_helper import decode_jwt, get_admin_payload
 from utils.logger import log_action
 
 app = FastAPI()
+templates = Jinja2Templates(directory="templates")
 
 # ---------------------------------------
 # User Routes
@@ -43,16 +46,59 @@ def submit_appeal(reason: str = Form(...), token: str = Form(...), db: Session =
     return {"status": "appeal_submitted", "appeal_id": appeal.id}
 
 
+# Blocked Dashboard
+@app.get("/dashboard/blocked", response_class=HTMLResponse)
+def blocked_dashboard(request: Request, token: str, db: Session = Depends(get_db)):
+    try:
+        payload = decode_jwt(token)
+    except Exception:
+        return HTMLResponse("Invalid token", status_code=401)
+    
+    username = payload.get("sub")
+    user = db.query(User).filter(User.username == username).first()
+    if not user or not user.blocked:
+        return HTMLResponse("Your account is not blocked", status_code=400)
+    
+    return templates.TemplateResponse("blocked_dashboard.html", {
+        "request": request,
+        "username": user.username,
+        "blocked_code": user.blocked_code,
+        "reason": "Violation of SIC rules",
+        "token": token
+    })
+
+
+# Banned Dashboard
+@app.get("/dashboard/banned", response_class=HTMLResponse)
+def banned_dashboard(request: Request, token: str, db: Session = Depends(get_db)):
+    try:
+        payload = decode_jwt(token)
+    except Exception:
+        return HTMLResponse("Invalid token", status_code=401)
+    
+    username = payload.get("sub")
+    user = db.query(User).filter(User.username == username).first()
+    if not user or not user.permanently_banned:
+        return HTMLResponse("Your account is not banned", status_code=400)
+    
+    return templates.TemplateResponse("banned_dashboard.html", {
+        "request": request,
+        "username": user.username,
+        "blocked_code": user.blocked_code,
+        "reason": "Severe violation of rules or legal infringement"
+    })
+
+
 # ---------------------------------------
 # WatcherDog Admin Routes
 # ---------------------------------------
 
-# Helper: get admin payload
 def require_admin(token: str, db: Session):
     payload = get_admin_payload(token, db)
     if not payload.get("is_admin"):
         raise HTTPException(403, "Admin privileges required")
     return payload
+
 
 # List pending appeals
 @app.get("/admin/watcherdog/appeals")
@@ -70,6 +116,7 @@ def list_appeals(token: str = Form(...), db: Session = Depends(get_db)):
             "blocked_code": a.user.blocked_code
         })
     return {"pending_appeals": result}
+
 
 # Resolve appeal
 @app.post("/admin/watcherdog/resolve_appeal")
@@ -97,7 +144,7 @@ def resolve_appeal(appeal_id: int = Form(...), approve: bool = Form(...), token:
         return {"status": "appeal_denied", "user": appeal.user.username}
 
 
-# Tiered block (1=normal, 2=serious, 3=extreme)
+# Tiered block (normal, serious, extreme)
 @app.post("/admin/watcherdog/block-tiered")
 def block_tiered(user_id: int = Form(...), tier: int = Form(...), token: str = Form(...), db: Session = Depends(get_db)):
     payload = require_admin(token, db)
@@ -108,24 +155,22 @@ def block_tiered(user_id: int = Form(...), tier: int = Form(...), token: str = F
     if tier == 1:
         user.blocked = True
         user.blocked_code = "BLOCKED"
-        log_action(f"Tier-1 block applied to {user.username}", payload.get("sub"))
     elif tier == 2:
         user.blocked = True
         user.blocked_code = "BLOCKED"
         for device in user.devices:
             device.authorized = False
-        log_action(f"Tier-2 block applied (devices blocked) to {user.username}", payload.get("sub"))
     elif tier == 3:
         user.blocked = True
         user.blocked_code = "BLOCKED"
         for device in user.devices:
             device.authorized = False
-        # TODO: implement OS full lock
-        log_action(f"Tier-3 extreme block applied to {user.username}", payload.get("sub"))
+        # TODO: OS full lock
     else:
         raise HTTPException(400, "Invalid tier")
     
     db.commit()
+    log_action(f"Tier-{tier} block applied to {user.username}", payload.get("sub"))
     return {"status": "blocked", "tier": tier, "user": user.username}
 
 
@@ -140,11 +185,21 @@ def permanent_ban_user(user_id: int = Form(...), token: str = Form(...), db: Ses
     user.permanently_banned = True
     user.blocked = True
     user.blocked_code = "PERMA_BAN"
+    for device in user.devices:
+        device.authorized = False
     db.commit()
     
     log_action(f"User {user.username} permanently banned", payload.get("sub"))
     return {"status": "user_permanently_banned", "user": user.username}
 
 
-# --- Optional: WatcherDog shutdown, lock/unlock website, block/unblock device routes ---
-# Add your previous WatcherDog endpoints here
+# Admin Dashboard
+@app.get("/admin/dashboard", response_class=HTMLResponse)
+def admin_dashboard(request: Request, token: str, db: Session = Depends(get_db)):
+    payload = require_admin(token, db)
+    users = db.query(User).all()
+    return templates.TemplateResponse("admin_dashboard.html", {
+        "request": request,
+        "users": users,
+        "admin": payload.get("sub")
+    })
