@@ -3,16 +3,17 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 from models.database import get_db
 from models.user import User
-from models.appeal import Appeal
 from models.device import Device
+from models.appeal import Appeal
 from utils.jwt_helper import decode_jwt, get_admin_payload
 from utils.logger import log_action
 
 app = FastAPI()
 
-# ----------------------------
-# User Appeal Route (Step 1a)
-# ----------------------------
+# ---------------------------------------
+# User Routes
+# ---------------------------------------
+
 @app.post("/appeal")
 def submit_appeal(reason: str = Form(...), token: str = Form(...), db: Session = Depends(get_db)):
     """
@@ -42,16 +43,21 @@ def submit_appeal(reason: str = Form(...), token: str = Form(...), db: Session =
     return {"status": "appeal_submitted", "appeal_id": appeal.id}
 
 
-# ----------------------------
-# Admin - List Pending Appeals (Step 1b)
-# ----------------------------
+# ---------------------------------------
+# WatcherDog Admin Routes
+# ---------------------------------------
+
+# Helper: get admin payload
+def require_admin(token: str, db: Session):
+    payload = get_admin_payload(token, db)
+    if not payload.get("is_admin"):
+        raise HTTPException(403, "Admin privileges required")
+    return payload
+
+# List pending appeals
 @app.get("/admin/watcherdog/appeals")
 def list_appeals(token: str = Form(...), db: Session = Depends(get_db)):
-    """
-    Returns all unresolved appeals for admin review.
-    """
-    payload = get_admin_payload(token, db)
-    
+    payload = require_admin(token, db)
     appeals = db.query(Appeal).filter(Appeal.resolved == False).all()
     result = []
     for a in appeals:
@@ -65,30 +71,19 @@ def list_appeals(token: str = Form(...), db: Session = Depends(get_db)):
         })
     return {"pending_appeals": result}
 
-
-# ----------------------------
-# Admin - Resolve Appeal
-# ----------------------------
+# Resolve appeal
 @app.post("/admin/watcherdog/resolve_appeal")
-def resolve_appeal(
-    appeal_id: int = Form(...),
-    approve: bool = Form(...),
-    token: str = Form(...),
-    db: Session = Depends(get_db)
-):
-    """
-    Approve or deny a user's appeal.
-    """
-    payload = get_admin_payload(token, db)
+def resolve_appeal(appeal_id: int = Form(...), approve: bool = Form(...), token: str = Form(...), db: Session = Depends(get_db)):
+    payload = require_admin(token, db)
     appeal = db.query(Appeal).filter(Appeal.id == appeal_id).first()
     if not appeal:
         raise HTTPException(404, "Appeal not found")
-
+    
     appeal.resolved = True
     appeal.approved = approve
     appeal.resolved_at = datetime.utcnow()
     appeal.resolved_by = payload.get("sub")
-
+    
     if approve:
         user = appeal.user
         user.blocked = False
@@ -102,70 +97,42 @@ def resolve_appeal(
         return {"status": "appeal_denied", "user": appeal.user.username}
 
 
-# ----------------------------
-# WatcherDog Admin Endpoints
-# ----------------------------
-
-# Shutdown website/OS
-@app.post("/admin/watcherdog/shutdown")
-def watcherdog_shutdown(confirmation: str = Form(...), token: str = Form(...)):
-    payload = get_admin_payload(token)
-    if confirmation != "CONFIRM_SHUTDOWN":
-        raise HTTPException(400, "Invalid confirmation phrase")
-    log_action("Shutdown requested", payload.get("sub"))
-    # TODO: enqueue safe shutdown process
-    return {"status": "shutdown_requested", "requested_by": payload.get("sub")}
-
-# Lock website
-@app.post("/admin/watcherdog/lock-website")
-def lock_website(confirmation: str = Form(...), token: str = Form(...)):
-    payload = get_admin_payload(token)
-    if confirmation != "CONFIRM_LOCK":
-        raise HTTPException(400, "Invalid confirmation phrase")
-    log_action("Website locked", payload.get("sub"))
-    # TODO: disable routes safely
-    return {"status": "website_locked", "requested_by": payload.get("sub")}
-
-# Unlock website
-@app.post("/admin/watcherdog/unlock-website")
-def unlock_website(confirmation: str = Form(...), token: str = Form(...)):
-    payload = get_admin_payload(token)
-    if confirmation != "CONFIRM_UNLOCK":
-        raise HTTPException(400, "Invalid confirmation phrase")
-    log_action("Website unlocked", payload.get("sub"))
-    # TODO: enable routes safely
-    return {"status": "website_unlocked", "requested_by": payload.get("sub")}
-
-# Block device
-@app.post("/admin/watcherdog/block-device")
-def block_device(device_id: int = Form(...), token: str = Form(...), db=Depends(get_db)):
-    payload = get_admin_payload(token, db)
-    device = db.query(Device).filter(Device.id == device_id).first()
-    if not device:
-        raise HTTPException(404, "Device not found")
-    device.authorized = False
+# Tiered block (1=normal, 2=serious, 3=extreme)
+@app.post("/admin/watcherdog/block-tiered")
+def block_tiered(user_id: int = Form(...), tier: int = Form(...), token: str = Form(...), db: Session = Depends(get_db)):
+    payload = require_admin(token, db)
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(404, "User not found")
+    
+    if tier == 1:
+        user.blocked = True
+        user.blocked_code = "BLOCKED"
+        log_action(f"Tier-1 block applied to {user.username}", payload.get("sub"))
+    elif tier == 2:
+        user.blocked = True
+        user.blocked_code = "BLOCKED"
+        for device in user.devices:
+            device.authorized = False
+        log_action(f"Tier-2 block applied (devices blocked) to {user.username}", payload.get("sub"))
+    elif tier == 3:
+        user.blocked = True
+        user.blocked_code = "BLOCKED"
+        for device in user.devices:
+            device.authorized = False
+        # TODO: implement OS full lock
+        log_action(f"Tier-3 extreme block applied to {user.username}", payload.get("sub"))
+    else:
+        raise HTTPException(400, "Invalid tier")
+    
     db.commit()
-    log_action(f"Device {device.name} blocked", payload.get("sub"))
-    return {"status": "device_blocked", "device": device.name}
+    return {"status": "blocked", "tier": tier, "user": user.username}
 
-# Unblock device
-@app.post("/admin/watcherdog/unblock-device")
-def unblock_device(device_id: int = Form(...), token: str = Form(...), db=Depends(get_db)):
-    payload = get_admin_payload(token, db)
-    device = db.query(Device).filter(Device.id == device_id).first()
-    if not device:
-        raise HTTPException(404, "Device not found")
-    device.authorized = True
-    db.commit()
-    log_action(f"Device {device.name} unblocked", payload.get("sub"))
-    return {"status": "device_unblocked", "device": device.name}
 
-# ----------------------------
-# Admin - Permanently Ban User
-# ----------------------------
+# Permanently ban user
 @app.post("/admin/watcherdog/permanent_ban")
 def permanent_ban_user(user_id: int = Form(...), token: str = Form(...), db: Session = Depends(get_db)):
-    payload = get_admin_payload(token, db)
+    payload = require_admin(token, db)
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(404, "User not found")
@@ -177,3 +144,7 @@ def permanent_ban_user(user_id: int = Form(...), token: str = Form(...), db: Ses
     
     log_action(f"User {user.username} permanently banned", payload.get("sub"))
     return {"status": "user_permanently_banned", "user": user.username}
+
+
+# --- Optional: WatcherDog shutdown, lock/unlock website, block/unblock device routes ---
+# Add your previous WatcherDog endpoints here
