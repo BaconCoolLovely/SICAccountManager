@@ -14,6 +14,6 @@ class User(Base):
     is_admin = Column(Boolean, default=False)
     blocked = Column(Boolean, default=False)
     blocked_code = Column(String, nullable=True)
+    permanently_banned = Column(Boolean, default=False)  # Prevents appeals
 
-    # Link to appeals
     appeals = relationship("Appeal", back_populates="user")
