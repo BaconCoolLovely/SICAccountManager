@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Dashboard - WatcherDog</title>
+</head>
+<body>
+    <h1>WatcherDog Admin Panel</h1>
+
+    <h2>Devices</h2>
+    <table id="devices-table">
+        <!-- JS will populate device list -->
+    </table>
+
+    <h2>Actions</h2>
+    <div>
+        <input type="text" id="confirmation" placeholder="Enter confirmation phrase" />
+        <button onclick="lockWebsite()">Lock Website</button>
+        <button onclick="unlockWebsite()">Unlock Website</button>
+        <button onclick="shutdownWebsite()">Shutdown</button>
+    </div>
+
+    <script>
+        const token = "PASTE_ADMIN_JWT_HERE"; // Admin JWT
+
+        async function lockWebsite() {
+            const confirmation = document.getElementById('confirmation').value;
+            const res = await fetch("/admin/watcherdog/lock-website", {
+                method: "POST",
+                headers: {"Content-Type": "application/x-www-form-urlencoded"},
+                body: `confirmation=${confirmation}&token=${token}`
+            });
+            alert(await res.json().then(r=>JSON.stringify(r)));
+        }
+
+        async function unlockWebsite() {
+            const confirmation = document.getElementById('confirmation').value;
+            const res = await fetch("/admin/watcherdog/unlock-website", {
+                method: "POST",
+                headers: {"Content-Type": "application/x-www-form-urlencoded"},
+                body: `confirmation=${confirmation}&token=${token}`
+            });
+            alert(await res.json().then(r=>JSON.stringify(r)));
+        }
+
+        async function shutdownWebsite() {
+            const confirmation = document.getElementById('confirmation').value;
+            const res = await fetch("/admin/watcherdog/shutdown", {
+                method: "POST",
+                headers: {"Content-Type": "application/x-www-form-urlencoded"},
+                body: `confirmation=${confirmation}&token=${token}`
+            });
+            alert(await res.json().then(r=>JSON.stringify(r)));
+        }
+    </script>
+</body>
+</html>
