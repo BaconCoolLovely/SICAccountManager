@@ -6,7 +6,7 @@ from sqlalchemy.orm import sessionmaker
 from models.user import Base, User
 from models.device import Device
 from utils.security import hash_password, verify_password
-from utils.jwt_helper import create_jwt, decode_jwt  # <- your existing jwt_helper.py
+from utils.jwt_helper import create_jwt, decode_jwt
 from utils.logs import log_action  # WatcherDog logging
 
 # --- Database Setup ---
@@ -67,7 +67,7 @@ def login(username: str = Form(...), password: str = Form(...), db=Depends(get_d
     token = create_jwt({"sub": user.username, "user_id": user.id, "is_admin": user.is_admin})
     return {"access_token": token, "token_type": "bearer"}
 
-# Dashboard page
+# User Dashboard page
 @app.get("/dashboard", response_class=HTMLResponse)
 def dashboard(request: Request, current_user: User = Depends(get_current_user), db=Depends(get_db)):
     devices = db.query(Device).filter(Device.owner_id == current_user.id).all()
@@ -145,3 +145,10 @@ def block_device(device_id: int = Form(...), token: str = Form(...), db=Depends(
     db.commit()
     log_action(f"Device {device.name} blocked", payload.get("sub"))
     return {"status": "device_blocked", "device": device.name}
+
+# --- Admin Dashboard Page ---
+@app.get("/admin/dashboard", response_class=HTMLResponse)
+def admin_dashboard(request: Request, current_user: User = Depends(get_current_user)):
+    if not current_user.is_admin:
+        raise HTTPException(403, "Admin required")
+    return templates.TemplateResponse("admin_dashboard.html", {"request": request})
