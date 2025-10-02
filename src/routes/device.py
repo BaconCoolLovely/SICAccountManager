@@ -1,1 +1,1 @@
-
+# device endpoints go here
