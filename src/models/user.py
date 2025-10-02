@@ -1,11 +1,19 @@
 from sqlalchemy import Column, Integer, String, Boolean
-from database import Base
+from sqlalchemy.orm import relationship
+from .database import Base
 
 class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
-    username = Column(String, unique=True, index=True)
-    password_hash = Column(String)
+    username = Column(String, unique=True, index=True, nullable=False)
+    password_hash = Column(String, nullable=False)
+    secret_key = Column(String, nullable=False)
+    email = Column(String, unique=True, nullable=False)
+    birthday = Column(String, nullable=True)
     is_admin = Column(Boolean, default=False)
-    secret_key = Column(String(200))  # each user gets their own 158-char secret key
+    blocked = Column(Boolean, default=False)
+    blocked_code = Column(String, nullable=True)
+
+    # Link to appeals
+    appeals = relationship("Appeal", back_populates="user")
