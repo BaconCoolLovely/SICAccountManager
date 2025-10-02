@@ -1,27 +1,58 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
     <title>Admin Dashboard - WatcherDog</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        h1, h2 { color: #cc0000; }
+        table { border-collapse: collapse; width: 60%; margin-bottom: 20px; }
+        table, th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+        input, button { padding: 8px; margin: 5px; }
+        button { cursor: pointer; background-color: #cc0000; color: white; border: none; border-radius: 4px; }
+        button:hover { background-color: #990000; }
+    </style>
 </head>
 <body>
     <h1>WatcherDog Admin Panel</h1>
 
     <h2>Devices</h2>
     <table id="devices-table">
-        <!-- JS will populate device list -->
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Authorized</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Devices will populate here -->
+        </tbody>
     </table>
 
     <h2>Actions</h2>
-    <div>
-        <input type="text" id="confirmation" placeholder="Enter confirmation phrase" />
-        <button onclick="lockWebsite()">Lock Website</button>
-        <button onclick="unlockWebsite()">Unlock Website</button>
-        <button onclick="shutdownWebsite()">Shutdown</button>
-    </div>
+    <input type="text" id="confirmation" placeholder="Enter confirmation phrase" />
+    <br>
+    <button onclick="lockWebsite()">Lock Website</button>
+    <button onclick="unlockWebsite()">Unlock Website</button>
+    <button onclick="shutdownWebsite()">Shutdown</button>
 
     <script>
-        const token = "PASTE_ADMIN_JWT_HERE"; // Admin JWT
+        // TODO: Replace with dynamic token after login
+        const token = "PASTE_ADMIN_JWT_HERE"; 
 
+        // Load devices
+        async function loadDevices() {
+            const res = await fetch("/dashboard", {
+                method: "GET",
+                headers: { "Authorization": token }
+            });
+            const html = await res.text();
+            // For now, manually inspect dashboard.html for device data
+            console.log(html);
+        }
+
+        // WatcherDog actions
         async function lockWebsite() {
             const confirmation = document.getElementById('confirmation').value;
             const res = await fetch("/admin/watcherdog/lock-website", {
@@ -29,7 +60,7 @@
                 headers: {"Content-Type": "application/x-www-form-urlencoded"},
                 body: `confirmation=${confirmation}&token=${token}`
             });
-            alert(await res.json().then(r=>JSON.stringify(r)));
+            alert(await res.json().then(r => JSON.stringify(r)));
         }
 
         async function unlockWebsite() {
@@ -39,7 +70,7 @@
                 headers: {"Content-Type": "application/x-www-form-urlencoded"},
                 body: `confirmation=${confirmation}&token=${token}`
             });
-            alert(await res.json().then(r=>JSON.stringify(r)));
+            alert(await res.json().then(r => JSON.stringify(r)));
         }
 
         async function shutdownWebsite() {
@@ -49,8 +80,11 @@
                 headers: {"Content-Type": "application/x-www-form-urlencoded"},
                 body: `confirmation=${confirmation}&token=${token}`
             });
-            alert(await res.json().then(r=>JSON.stringify(r)));
+            alert(await res.json().then(r => JSON.stringify(r)));
         }
+
+        // Load devices on page load
+        loadDevices();
     </script>
 </body>
 </html>
